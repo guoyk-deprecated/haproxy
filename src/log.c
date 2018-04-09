@@ -124,6 +124,8 @@ static const struct logformat_type logformat_keywords[] = {
 	{ "CC", LOG_FMT_CCLIENT, PR_MODE_HTTP, LW_REQHDR, NULL },  /* client cookie */
 	{ "CS", LOG_FMT_CSERVER, PR_MODE_HTTP, LW_RSPHDR, NULL },  /* server cookie */
 	{ "H", LOG_FMT_HOSTNAME, PR_MODE_TCP, LW_INIT, NULL }, /* Hostname */
+	{ "riid", LOG_FMT_LINSTANCEID, PR_MODE_TCP, LW_INIT, NULL }, /* random generated instance id */
+	{ "siid", LOG_FMT_SINSTANCEID, PR_MODE_TCP, LW_INIT, NULL }, /* short random generated instance id */
 	{ "ID", LOG_FMT_UNIQUEID, PR_MODE_HTTP, LW_BYTES, NULL }, /* Unique ID */
 	{ "ST", LOG_FMT_STATUS, PR_MODE_TCP, LW_RESP, NULL },   /* status code */
 	{ "T", LOG_FMT_DATEGMT, PR_MODE_TCP, LW_INIT, NULL },   /* date GMT */
@@ -2276,7 +2278,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 
 			case LOG_FMT_COUNTER: // %rt
 				if (tmp->options & LOG_OPT_HEXA) {
-					iret = snprintf(tmplog, dst + maxsize - tmplog, "%04X", s->uniq_id);
+					iret = snprintf(tmplog, dst + maxsize - tmplog, "%08X", s->uniq_id);
 					if (iret < 0 || iret > dst + maxsize - tmplog)
 						goto out;
 					last_isspace = 0;
@@ -2313,6 +2315,38 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 					goto out;
 				tmplog = ret;
 				last_isspace = 0;
+				break;
+
+			case LOG_FMT_LINSTANCEID: // %riid
+				if (tmp->options & LOG_OPT_HEXA) {
+					iret = snprintf(tmplog, dst + maxsize - tmplog, "%016lX", global.riid);
+					if (iret < 0 || iret > dst + maxsize - tmplog)
+						goto out;
+					last_isspace = 0;
+					tmplog += iret;
+				} else {
+					ret = ultoa_o(global.riid, tmplog, dst + maxsize - tmplog);
+					if (ret == NULL)
+						goto out;
+					tmplog = ret;
+					last_isspace = 0;
+				}
+				break;
+
+			case LOG_FMT_SINSTANCEID: // %siid
+				if (tmp->options & LOG_OPT_HEXA) {
+					iret = snprintf(tmplog, dst + maxsize - tmplog, "%08X", (unsigned int)global.riid);
+					if (iret < 0 || iret > dst + maxsize - tmplog)
+						goto out;
+					last_isspace = 0;
+					tmplog += iret;
+				} else {
+					ret = ultoa_o((unsigned int)global.riid, tmplog, dst + maxsize - tmplog);
+					if (ret == NULL)
+						goto out;
+					tmplog = ret;
+					last_isspace = 0;
+				}
 				break;
 
 			case LOG_FMT_PID: // %pid

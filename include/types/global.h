@@ -87,6 +87,7 @@ enum {
 struct global {
 	int uid;
 	int gid;
+	unsigned long riid;
 	int external_check;
 	int nbproc;
 	int nbthread;

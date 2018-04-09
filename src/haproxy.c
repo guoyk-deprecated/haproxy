@@ -126,6 +126,7 @@ unsigned long pid_bit = 1;      /* bit corresponding to the process id */
 
 /* global options */
 struct global global = {
+	.riid = 0,
 	.hard_stop_after = TICK_ETERNITY,
 	.nbproc = 1,
 	.nbthread = 1,
@@ -1260,6 +1261,34 @@ static char **copy_argv(int argc, char **argv)
 	return newargv;
 }
 
+/* update global.riid with 4 random() long */
+static void update_riid()
+{
+	int fd, i = -1;
+	char buf[8];
+	fd = open("/dev/urandom", O_RDONLY, 0);
+	if (fd < 0) {
+		ha_alert("failed to open /dev/urandom.\n");
+		goto failed;
+	}
+	if (8 != read(fd, buf, 8)) {
+		ha_alert("failed to read /dev/urandom.\n");
+		close(fd);
+		goto failed;
+	}
+
+	global.riid = 0;
+	for (i = 0; i < 8; i ++) {
+		global.riid = (global.riid<<8) + buf[i];
+	}
+
+	close(fd);
+	return;
+failed:
+	global.riid = getpid() + (unsigned long)(random() + (random() << 16) + (random() << 32) + (random() << 48));
+    return;
+}
+
 /*
  * This function initializes all the necessary variables. It only returns
  * if everything is OK. If something fails, it exits.
@@ -1311,6 +1340,8 @@ static void init(int argc, char **argv)
 	start_date = now;
 
 	srandom(now_ms - getpid());
+
+	update_riid();
 
 	init_log();
 	signal_init();
@@ -2767,6 +2798,8 @@ int main(int argc, char **argv)
 			/* parent leave to daemonize */
 			if (ret > 0)
 				exit(0);
+			/* update riid of child */
+			update_riid();
 		}
 
 		if (global.mode & MODE_MWORKER) {
@@ -2813,8 +2846,12 @@ int main(int argc, char **argv)
 				protocol_unbind_all();
 				exit(1); /* there has been an error */
 			}
-			else if (ret == 0) /* child breaks here */
+			else if (ret == 0) {
+				/* update riid of child */
+				update_riid();
+				/* child breaks here */
 				break;
+			}
 			children[proc] = ret;
 			if (pidfd >= 0 && !(global.mode & MODE_MWORKER)) {
 				char pidstr[100];
